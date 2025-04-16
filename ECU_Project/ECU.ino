@@ -4,6 +4,7 @@
 #include "sensors.h"
 #include "config.h"
 #include "serial.h"
+#include "coldStart.h"
 
 unsigned long lastRpm = 0;
 bool corteInjecao = false;
@@ -69,10 +70,8 @@ void loop() {
   float injectionTimeReal = 0;
   if (!corteInjecao) {
     injectionTimeReal = interpolatedInjection;
-    if (temperature != -99.9) {
-      if (temperature < 30.0) injectionTimeReal *= 1.2;
-      else if (temperature > 90.0) injectionTimeReal *= 0.9;
-    }
+    float correction = getColdStartCorrection(temperature);
+    injectionTimeReal *= correction;
   }
 
   float injectionTime = injectionTimeReal * visualBoost;
