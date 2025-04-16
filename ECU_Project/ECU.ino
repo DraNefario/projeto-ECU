@@ -5,6 +5,7 @@
 #include "config.h"
 #include "serial.h"
 #include "coldStart.h"
+#include "Afterstart.h"
 
 unsigned long lastRpm = 0;
 bool corteInjecao = false;
@@ -31,25 +32,31 @@ void setup() {
 
 void loop() {
   unsigned long currentMicros = micros();
+  unsigned long agora = millis();
+
   float tpsPercentage = readTPS();
   float temperature = readTemperature();
 
   // Atualiza RPM a cada segundo
-  unsigned long agora = millis();
-  if (agora - ultimaLeitura >= 1000) {
+  if ((long)(agora - ultimaLeitura) >= 1000) {
     noInterrupts();
     rpm = pulsos * 60;
     pulsos = 0;
     interrupts();
     ultimaLeitura = agora;
 
-    if (millis() < 2000) rpm = 1200;
+    // Simula RPM durante cranking apenas se ainda não houver leitura real
+    if (agora < 2000 && rpm == 0) rpm = 1200;
     else if (rpm < idleRpm) rpm = idleRpm;
   }
 
-  // Lógica de corte de injeção
-  corteInjecao = (tpsPercentage < 1.0 && rpm > (idleRpm + 600)) ? true : false;
+  // Atualiza estado do Afterstart continuamente
+  updateAfterstart(agora, rpm > 400);
 
+  // Corte de injeção se TPS fechado e motor acelerado
+  corteInjecao = (tpsPercentage < 1.0 && rpm > (idleRpm + 600));
+
+  // Índices para interpolação do mapa
   int tpsIdx = getIndex(tpsPercentage, tpsSteps, 8);
   int rpmIdx = getIndex(rpm, rpmSteps, 8);
   int tpsIdx2 = min(tpsIdx + 1, 7);
@@ -65,38 +72,45 @@ void loop() {
   float Q21 = fuelMap[tpsIdx2][rpmIdx];
   float Q22 = fuelMap[tpsIdx2][rpmIdx2];
 
-  float interpolatedInjection = bilinearInterpolation(tpsPercentage, rpm, x1, x2, y1, y2, Q11, Q12, Q21, Q22);
+  float interpolatedInjection = bilinearInterpolation(
+    tpsPercentage, rpm, x1, x2, y1, y2, Q11, Q12, Q21, Q22
+  );
 
-  float injectionTimeReal = 0;
+  float injectionTimeReal = interpolatedInjection;
+
   if (!corteInjecao) {
-    injectionTimeReal = interpolatedInjection;
     float correction = getColdStartCorrection(temperature);
-    injectionTimeReal *= correction;
+    float afterstart = getAfterstartCorrection();
+    injectionTimeReal *= correction * afterstart;
   }
 
-  float injectionTime = injectionTimeReal * visualBoost;
+  float injectionTime = injectionTimeReal; //* visualBoost;
   unsigned long maxInjectionTime = (rpm > 0) ? (60000000UL / rpm) / numInjectors : 0;
   if (maxInjectionTime > 0 && injectionTime > maxInjectionTime) {
     injectionTime = maxInjectionTime;
   }
 
-  if (!injectorOn) {
-    digitalWrite(injectors[currentInjector], HIGH);
-    injectorStartMicros = currentMicros;
-    injectorOn = true;
-  } else if ((long)(currentMicros - injectorStartMicros) >= (long)injectionTime) {
-    digitalWrite(injectors[currentInjector], LOW);
-    currentInjector = (currentInjector + 1) % numInjectors;
-    injectorOn = false;
+  if (injectionTimeReal > 0) {
+    if (!injectorOn) {
+      digitalWrite(injectors[currentInjector], HIGH);
+      injectorStartMicros = currentMicros;
+      injectorOn = true;
+    } else if ((long)(currentMicros - injectorStartMicros) >= (long)injectionTime) {
+      digitalWrite(injectors[currentInjector], LOW);
+      currentInjector = (currentInjector + 1) % numInjectors;
+      injectorOn = false;
+    }
   }
 
-  if (agora - ultimaAtualizacaoSerial >= intervaloSerial) {
+  // Envio para terminal serial
+  if ((long)(agora - ultimaAtualizacaoSerial) >= intervaloSerial) {
     Serial.printf(
-      "TPS: %5.1f%% | RPM: %4d | InjTime: %5.0fus | Temp: %6.1fC| Corte Injecao: %s\n",
+      "TPS: %5.1f%% | RPM: %4d | InjTime: %5.0fus | Temp: %6.1fC | Afterstart: %.2f | Corte Injecao: %s\n",
       tpsPercentage, rpm, injectionTimeReal, temperature,
-      corteInjecao ? "ON" : "off"
+      getAfterstartCorrection(), corteInjecao ? "ON" : "off"
     );
     ultimaAtualizacaoSerial = agora;
   }
+
   handleSerialInput();
 }
