@@ -4,3 +4,4 @@
 void initSensors();
 float readTPS();
 float readTemperature();
+float lerMAP();

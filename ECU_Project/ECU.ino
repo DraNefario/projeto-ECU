@@ -6,6 +6,7 @@
 #include "serial.h"
 #include "coldStart.h"
 #include "Afterstart.h"
+#include "RPMControl.h"
 
 unsigned long lastRpm = 0;
 bool corteInjecao = false;
@@ -18,6 +19,9 @@ void IRAM_ATTR contarPulso() {
   pulsos++;
 }
 
+extern bool corteAtivo;  // Importa a variável de RPMControl.cpp
+
+
 int currentInjector = 0;
 bool injectorOn = false;
 unsigned long injectorStartMicros = 0;
@@ -28,16 +32,22 @@ void setup() {
   initSensors();
   pinMode(RPM_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RPM_PIN), contarPulso, FALLING);
+  strategy = ALPHA_N;
 }
 
 void loop() {
   unsigned long currentMicros = micros();
   unsigned long agora = millis();
 
-  float tpsPercentage = readTPS();
-  float temperature = readTemperature();
+  // Leitura real dos sensores
+  float tpsPercentage = readTPS();        // Leitura do TPS real
+  float mapPressure = lerMAP();           // Leitura do MAP real
+  float temperature = readTemperature();  // Leitura da temperatura real (se necessário)
 
-  // Atualiza RPM a cada segundo
+  // Correção baseada no MAP (suaviza a interpolação do TPS)
+  float correcaoMAP = mapPressure / 100.0;  // Pressão normalizada (por exemplo: 100kPa)
+
+  // Atualiza RPM a cada segundo (como no seu código original)
   if ((long)(agora - ultimaLeitura) >= 1000) {
     noInterrupts();
     rpm = pulsos * 60;
@@ -45,38 +55,34 @@ void loop() {
     interrupts();
     ultimaLeitura = agora;
 
-    // Simula RPM durante cranking apenas se ainda não houver leitura real
-    if (agora < 2000 && rpm == 0) rpm = 1200;
-    else if (rpm < idleRpm) rpm = idleRpm;
+    if (agora < 2000 && rpm == 0) rpm = 1200;  // Durante o cranking
+    else if (rpm < idleRpm) rpm = idleRpm;     // RPM em marcha lenta
+
+    // Simula desaceleração se estiver em corte de giro
+    if (corteAtivo) {
+      rpm -= 800;  // Ajuste esse valor conforme a "velocidade" de queda desejada
+      if (rpm < idleRpm) rpm = idleRpm;  // Evita cair abaixo do mínimo
+    }
   }
 
-  // Atualiza estado do Afterstart continuamente
+  int rpmDisplay = corteAtivo ? 9700 : rpm;
+
+
+  // Atualiza o estado do Afterstart
   updateAfterstart(agora, rpm > 400);
 
-  // Corte de injeção se TPS fechado e motor acelerado
-  corteInjecao = (tpsPercentage < 1.0 && rpm > (idleRpm + 600));
 
-  // Índices para interpolação do mapa
-  int tpsIdx = getIndex(tpsPercentage, tpsSteps, 8);
-  int rpmIdx = getIndex(rpm, rpmSteps, 8);
-  int tpsIdx2 = min(tpsIdx + 1, 7);
-  int rpmIdx2 = min(rpmIdx + 1, 7);
+  // Atualiza corteInjecao para refletir tanto TPS quanto corte de giro real
+  corteInjecao = corteAtivo || (tpsPercentage < 1.0 && rpm > (idleRpm + 600));
 
-  float x1 = tpsSteps[tpsIdx];
-  float x2 = tpsSteps[tpsIdx2];
-  float y1 = rpmSteps[rpmIdx];
-  float y2 = rpmSteps[rpmIdx2];
 
-  float Q11 = fuelMap[tpsIdx][rpmIdx];
-  float Q12 = fuelMap[tpsIdx][rpmIdx2];
-  float Q21 = fuelMap[tpsIdx2][rpmIdx];
-  float Q22 = fuelMap[tpsIdx2][rpmIdx2];
+  // Chama a interpolação para calcular o tempo de injeção
+  float interpolatedInjection = getBasePulseWidth(rpm, tpsPercentage, mapPressure);
 
-  float interpolatedInjection = bilinearInterpolation(
-    tpsPercentage, rpm, x1, x2, y1, y2, Q11, Q12, Q21, Q22
-  );
+  Serial.printf("interpolated: %.2f | correcaoMAP: %.2f | tempCorr: %.2f | afterCorr: %.2f\n",
+                interpolatedInjection, correcaoMAP, getColdStartCorrection(temperature), getAfterstartCorrection());
 
-  float injectionTimeReal = interpolatedInjection;
+  float injectionTimeReal = interpolatedInjection * correcaoMAP;
 
   if (!corteInjecao) {
     float correction = getColdStartCorrection(temperature);
@@ -84,12 +90,17 @@ void loop() {
     injectionTimeReal *= correction * afterstart;
   }
 
+  // Chama a função de controle de injeção com corte de giro
+  injectionTimeReal = controlInjection(rpm, injectionTimeReal);
+
+  // Limita o tempo de injeção
   float injectionTime = injectionTimeReal; //* visualBoost;
   unsigned long maxInjectionTime = (rpm > 0) ? (60000000UL / rpm) / numInjectors : 0;
   if (maxInjectionTime > 0 && injectionTime > maxInjectionTime) {
     injectionTime = maxInjectionTime;
   }
 
+  // Controla os injetores
   if (injectionTimeReal > 0) {
     if (!injectorOn) {
       digitalWrite(injectors[currentInjector], HIGH);
@@ -102,15 +113,15 @@ void loop() {
     }
   }
 
-  // Envio para terminal serial
+  // Envio de dados para o terminal serial
   if ((long)(agora - ultimaAtualizacaoSerial) >= intervaloSerial) {
     Serial.printf(
-      "TPS: %5.1f%% | RPM: %4d | InjTime: %5.0fus | Temp: %6.1fC | Afterstart: %.2f | Corte Injecao: %s\n",
-      tpsPercentage, rpm, injectionTimeReal, temperature,
+      "TPS: %5.1f%% | RPM: %4d | InjTime: %5.0fus | Temp: %6.1fC | Afterstart: %.2f | Corte Injecao: %s\n\n",
+      tpsPercentage, rpmDisplay, injectionTimeReal, temperature,
       getAfterstartCorrection(), corteInjecao ? "ON" : "off"
     );
     ultimaAtualizacaoSerial = agora;
   }
 
-  handleSerialInput();
+  handleSerialInput();  // Lê e processa entradas do serial (se necessário)
 }

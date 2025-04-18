@@ -1,13 +1,22 @@
-#pragma once
+#ifndef FUELMAP_H
+#define FUELMAP_H
 
-extern int fuelMap[8][8];
-extern const int tpsSteps[8];
-extern const int rpmSteps[8];
+enum FuelStrategy { ALPHA_N, SPEED_DENSITY };
+extern FuelStrategy strategy;
 
-int getIndex(float value, const int* steps, int size);
+#define RPM_STEPS 8
+#define TPS_STEPS 8
+#define MAP_STEPS 8
 
-float bilinearInterpolation(float x, float y,
-                            float x1, float x2,
-                            float y1, float y2,
-                            float Q11, float Q12,
-                            float Q21, float Q22);
+extern float rpmSteps[RPM_STEPS];
+extern float tpsSteps[TPS_STEPS];
+extern float mapSteps[MAP_STEPS];
+
+extern float fuelMapAlphaN[RPM_STEPS][TPS_STEPS];
+extern float fuelMapSpeedDensity[RPM_STEPS][MAP_STEPS];
+
+float getBasePulseWidth(float rpm, float tps, float map);
+float interpolateAlphaN(float rpm, float tps);
+float interpolateSpeedDensity(float rpm, float map);
+
+#endif

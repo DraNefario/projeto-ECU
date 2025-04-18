@@ -123,6 +123,15 @@
       "left": -163.75,
       "rotate": 90,
       "attrs": { "value": "1000" }
+    },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -711.7, "left": 115, "attrs": {} },
+    {
+      "type": "wokwi-resistor",
+      "id": "r10",
+      "top": -447.25,
+      "left": -9.6,
+      "rotate": 90,
+      "attrs": { "value": "1000" }
     }
   ],
   "connections": [
@@ -157,7 +166,11 @@
     [ "temp1:DQ", "esp:17", "green", [ "v0" ] ],
     [ "temp1:GND", "esp:GND.1", "black", [ "v288", "h0", "v115.2" ] ],
     [ "temp1:VCC", "r2:1", "red", [ "v0" ] ],
-    [ "r2:2", "esp:5V", "red", [ "h0", "v210" ] ]
+    [ "r2:2", "esp:5V", "red", [ "h0", "v210" ] ],
+    [ "pot1:GND", "esp:GND.1", "black", [ "v326.4", "h-163.2" ] ],
+    [ "pot1:VCC", "r10:1", "red", [ "v0" ] ],
+    [ "r10:2", "esp:3V3.1", "red", [ "h0" ] ],
+    [ "pot1:SIG", "esp:10", "green", [ "v547.2", "h-269.2" ] ]
   ],
   "dependencies": {}
 }

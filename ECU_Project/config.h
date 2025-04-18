@@ -3,6 +3,8 @@
 #define LED_PIN 16
 #define TPS_PIN 4
 #define RPM_PIN 5
+#define MAP_PIN 10
+
 
 #define INJECTOR1_PIN 18
 #define INJECTOR2_PIN 8
@@ -10,9 +12,10 @@
 #define INJECTOR4_PIN 9
 
 #define ONE_WIRE_BUS 17
+#define RPM_CUT_LIMIT 10000  // RPM máximo permitido antes do corte
 
 const int idleRpm = 800;
-const int visualBoost = 250;
+const int visualBoost = 100;
 const int intervaloSerial = 50;
 
 const int numInjectors = 4;
