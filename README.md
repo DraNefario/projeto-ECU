@@ -3,6 +3,7 @@ https://wokwi.com/projects/428399225052770305
 
 
 ✅ Funcionalidades Já Implementadas na ECU (ESP32)
+
 🔧 Leitura de Sensores
 TPS (Throttle Position Sensor)
 
