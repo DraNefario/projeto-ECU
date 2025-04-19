@@ -60,6 +60,9 @@ void handleSerialInput() {
     } else if (command == "set strategy SPEED_DENSITY") {
       strategy = SPEED_DENSITY;
       Serial.println("Estratégia alterada para: SPEED_DENSITY");
+    } else if (command == "set strategy BLEND") {
+      strategy = BLEND;
+      Serial.println("Estratégia alterada para: BLEND");
     } else {
       Serial.println("Comando inválido. Use: 'print map', 'set map i j valor', ou 'set strategy'");
     }

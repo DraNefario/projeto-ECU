@@ -7,6 +7,8 @@
 #include "coldStart.h"
 #include "Afterstart.h"
 #include "RPMControl.h"
+#include "CrankEnrichment.h"
+
 
 unsigned long lastRpm = 0;
 bool corteInjecao = false;
@@ -87,6 +89,7 @@ void loop() {
   if (!corteInjecao) {
     float correction = getColdStartCorrection(temperature);
     float afterstart = getAfterstartCorrection();
+    float crankEnrichment = isCranking(agora, rpm) ? getCrankEnrichmentFactor(temperature) : 1.0;
     injectionTimeReal *= correction * afterstart;
   }
 

@@ -1,7 +1,12 @@
 #ifndef FUELMAP_H
 #define FUELMAP_H
 
-enum FuelStrategy { ALPHA_N, SPEED_DENSITY };
+enum FuelStrategy {
+  ALPHA_N,
+  SPEED_DENSITY,
+  BLEND
+};
+
 extern FuelStrategy strategy;
 
 #define RPM_STEPS 8

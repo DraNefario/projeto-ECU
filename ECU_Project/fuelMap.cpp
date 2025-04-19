@@ -1,6 +1,7 @@
 #include "fuelMap.h"
+#include "blending.h"
 
-FuelStrategy strategy = SPEED_DENSITY;
+FuelStrategy strategy = BLEND;
 
 float rpmSteps[RPM_STEPS] = { 600, 1000, 1500, 2000, 3000, 4000, 5000, 6000 };
 float tpsSteps[TPS_STEPS] = { 0, 10, 20, 40, 60, 75, 90, 100 };
@@ -73,7 +74,14 @@ float interpolateSpeedDensity(float rpm, float map) {
 float getBasePulseWidth(float rpm, float tps, float map) {
   if (strategy == ALPHA_N) {
     return interpolateAlphaN(rpm, tps);
-  } else {
+  } else if (strategy == SPEED_DENSITY) {
     return interpolateSpeedDensity(rpm, map);
+  } else if (strategy == BLEND) {
+    float tpsValue = interpolateAlphaN(rpm, tps);
+    float mapValue = interpolateSpeedDensity(rpm, map);
+    float blendFactor = getBlendFactor(rpm);  // ex: 0.0 = 100% TPS, 1.0 = 100% MAP
+    return tpsValue * (1.0 - blendFactor) + mapValue * blendFactor;
   }
+
+  return 0.0;
 }
