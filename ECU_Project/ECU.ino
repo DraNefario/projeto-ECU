@@ -8,6 +8,12 @@
 #include "Afterstart.h"
 #include "RPMControl.h"
 #include "CrankEnrichment.h"
+#include "transientEnrichment.h"
+#include "ignitionMap.h"
+#include "ignitionControl.h"
+
+
+
 
 
 unsigned long lastRpm = 0;
@@ -35,6 +41,7 @@ void setup() {
   pinMode(RPM_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RPM_PIN), contarPulso, FALLING);
   strategy = ALPHA_N;
+  setupIgnition();
 }
 
 void loop() {
@@ -43,6 +50,10 @@ void loop() {
 
   // Leitura real dos sensores
   float tpsPercentage = readTPS();        // Leitura do TPS real
+
+  updateTransientEnrichment(tpsPercentage, agora);
+
+
   float mapPressure = lerMAP();           // Leitura do MAP real
   float temperature = readTemperature();  // Leitura da temperatura real (se necessário)
 
@@ -90,8 +101,14 @@ void loop() {
     float correction = getColdStartCorrection(temperature);
     float afterstart = getAfterstartCorrection();
     float crankEnrichment = isCranking(agora, rpm) ? getCrankEnrichmentFactor(temperature) : 1.0;
-    injectionTimeReal *= correction * afterstart;
+    float transient = getTransientEnrichment();
+    injectionTimeReal *= correction * afterstart * crankEnrichment * transient;
   }
+
+  float ignitionAdvance = getIgnitionAdvance(rpm, tpsPercentage, mapPressure);
+
+  handleIgnition(rpm, ignitionAdvance, currentMicros);
+
 
   // Chama a função de controle de injeção com corte de giro
   injectionTimeReal = controlInjection(rpm, injectionTimeReal);
@@ -123,6 +140,7 @@ void loop() {
       tpsPercentage, rpmDisplay, injectionTimeReal, temperature,
       getAfterstartCorrection(), corteInjecao ? "ON" : "off"
     );
+    Serial.printf("Transient: %.2f\n", getTransientEnrichment());
     ultimaAtualizacaoSerial = agora;
   }
 

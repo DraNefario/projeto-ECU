@@ -5,6 +5,10 @@
 #define RPM_PIN 5
 #define MAP_PIN 10
 
+#define IGNITION_PIN 11  
+#define DWELL_TIME_US 3000  // Tempo de carga da bobina, ex: 3ms
+#define numCylinders 1      // Você pode ajustar depois
+
 
 #define INJECTOR1_PIN 18
 #define INJECTOR2_PIN 8
