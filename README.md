@@ -59,3 +59,6 @@ Simulação no Wokwi: Projeto testado em ambiente virtual, facilitando testes de
 
 Plataforma ESP32 com Arduino/C++: Código customizado com controle direto de ADC e lógica de injeção.
 
+
+adicionei mais coisa, mas nao lembro o que e estou com preguiça de procurar
+
