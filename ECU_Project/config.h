@@ -2,10 +2,16 @@
 
 #define LED_PIN 16
 #define TPS_PIN 4
-#define RPM_PIN 5
-#define MAP_PIN 10
+#define RPM_PIN 6
+#define MAP_PIN 7
 
-#define IGNITION_PIN 11  
+
+#define numCoils 4
+#define coilPins numCoilsPins
+
+#define SD_CS_PIN 5
+
+#define IGNITION_PIN 19
 #define DWELL_TIME_US 3000  // Tempo de carga da bobina, ex: 3ms
 #define numCylinders 1      // Você pode ajustar depois
 
@@ -24,3 +30,8 @@ const int intervaloSerial = 50;
 
 const int numInjectors = 4;
 const int injectors[numInjectors] = {INJECTOR1_PIN, INJECTOR3_PIN, INJECTOR4_PIN, INJECTOR2_PIN};
+
+const int numCoilsPins[numCoils] = {20, 15, 14, 19};
+
+// Ordem de disparo: 1-3-4-2
+const int firingOrder[numCoils] = {0, 2, 3, 1};  // Índices = {cil1, cil3, cil4, cil2}
